@@ -1,0 +1,100 @@
+* Motivação
+
+A criação deste pseudo /profiler/ se dá por conta da necessidade de *automatizar* o estudo do comportamento do problema apresentado anteriormente (ocorrências de números primos num arquivo com duzentos e cinquenta mil números). Basicamente, foi pedido que testes sobre uma quantidade de /threads/ seja feito *cinquenta vezes* de forma que seja possível retirar a média destes tempos obtidos para que, por fim, sejam utilizados nos cálculos/gráficos necessários.
+
+** Como este relatório é estruturado
+
+O /core/ do programa foi escrito em C++, compilado com o /GNU C compiler/ com as devidas bibliotecas importadas, no caso, apenas ~pthread~. O comando de compilação pode ser encontrado no [[file:Makefile][Makefile]] encontrado na raiz do projeto.
+
+O /wrapper/ para contagem dos tempos é escrito em *Common Lisp*, executado a partir da implementação *SBCL*.
+
+* O programa principal
+
+O programa deve ser executado sem argumentos para que este assuma um comportamento *serial* ou com um número inteiro *n* onde \( n > 1\) para que este seja executado com *n* /threads/.
+
+* O /wrapper/
+
+A parte mais fácil seria a execução do programa em si, uma vez que este só recebe um argumento.
+
+#+begin_src lisp 
+(defun execute-program (program-name &optional n)
+  "Executes a program synchronously after receiving a single argument n.
+This function will return the string produced by the output of said
+program."
+  (let ((full-command (if (and n (> n 1))
+			  (list program-name n)
+			  program-name)))
+    (uiop:run-program full-command :output :string)))
+
+#+end_src
+
+** Cálculo da média 
+
+O programa será executado cinquenta vezes para que seja definida uma média simples em relação a todas as execuções. Para que seja possível um controle maior, o número de execuções será customizável.
+
+#+begin_src lisp
+(defparameter *total-runs* 50)
+#+end_src
+
+#+begin_src lisp 
+(defun get-average (runs filename &optional (n 1))
+  "Runs the program x times (runs) and returns the average runtime (sum/runs).
+``n'' refers to the number of threads in which our program must execute on."
+  (loop for i
+	from 0 below runs
+	sum (parse-integer (execute-program filename n)
+			   :junk-allowed t) into result
+	finally (return (/ result runs))))
+
+#+end_src
+
+** Cálculo do /Speedup/
+
+Partindo do cálculo simples do /Speedup/ onde \(Speedup = \frac{T_1}{T_n}\), podemos
+definir a seguinte função:
+
+#+begin_src lisp 
+(defun get-speedup (serial-time threaded-time)
+  (/ serial-time threaded-time))
+#+end_src
+
+#+RESULTS:
+: GET-SPEEDUP
+
+** Coletando os dados das execuções
+
+Por motivos de simplificação do experimento atual, algumas assunções devem ser realizadas quanto ao ambiente em que tais experiências serão realizadas
+
+1. \(x = [1, \infty[ \), como a equipe não possui infinitas quantidades de CPUs, o limite superior será o número de CPUs dos membros da equipe;
+2. Quando \(x = 1\), o comportamento do programa será completamente *serial*;
+3. Assumindo que /n/ seja o número de /threads/, o cálculo de /Speedup/ se torna mais impreciso quando \(n > x\), uma vez que, num mundo ideal sem troca de contexto com todas as CPUs ocupadas com uma /thread/, \( n - x \) /threads/ ficarão *no estado ready*.
+
+
+
+#+begin_src lisp
+(defparameter *cpu-count* 4)
+#+end_src
+
+Após execução será produzida uma tabela cujas colunas representam:
+
+1. Número de /threads n/
+2. Tempo em milissegundos da execução
+3. /Speedup/
+
+
+
+#+begin_src lisp
+(defun get-row (filename n &key serial)
+  (let* ((time (get-average *total-runs* filename n))
+	 (speedup (get-speedup (or serial time) time)))
+    (list n (cons time speedup))))
+#+end_src
+
+#+begin_src lisp
+(defun produce-table (filename)
+  (let* ((serial-row (get-row filename 1))
+	 (serial-time (caadr serial-row))
+	 (parallel-table (loop for n from 2 to *cpu-count*
+			       collect (get-row filename n :serial serial-time ))))
+    (cons serial-row parallel-table)))
+#+end_src
