@@ -24,9 +24,8 @@ public:
 			(endPoint).time_since_epoch().count();
 
         auto duration = end - start;
-        double ms     = duration * 0.001;
 
-        std::cout << duration << "us (" << ms << "ms)\n";
+        std::cout << duration*0.001 << std::endl;
     }
 
 private:

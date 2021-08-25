@@ -8,9 +8,9 @@
 
 bool isPrime(int n)
 {
-	// extracted from:
-	// https://learnprogramo.com/prime-number-program-in-c-plus-plus/
-	
+    // extracted from:
+    // https://learnprogramo.com/prime-number-program-in-c-plus-plus/
+
     // Corner cases
     if (n <= 1)
         return false;
@@ -39,59 +39,73 @@ int threadWrapper(std::vector<int>* n, int b, int e)
     return qtPrimos;
 }
 
-int main()
+std::vector<int> getFileContent(const std::string& fileName)
 {
-    const int c_qtThreads{5};
-    std::vector<std::future<int>> threads;
-
-    std::vector<int> numbers;
-
-    std::string fileName{"data.csv"};
     std::ifstream inputFile;
 
     inputFile.open(fileName);
 
     if (!inputFile.is_open()) {
         std::cout << "Erro na leitura do arquivo" << std::endl;
-        return 1;
+        exit(1);
     }
 
-    int qtPrimos{0};
+    // read the values and save in a vector
     std::string line{};
+    std::vector<int> numbers;
 
-	// read the values and save in a vector
     while (inputFile) {
         std::getline(inputFile, line);
         numbers.push_back(std::stoi(line));
     }
 
-	inputFile.close();
+    inputFile.close();
 
-	// synchronous check
+    return numbers;
+}
+
+
+std::string findArgument(int argc, char* argv[], const std::string& pattern)
+{
+	for (int i{1}; i < argc; ++i) {
+		std::string arg{argv[i]};
+		
+		auto pos = arg.find(pattern);
+
+		if (pos != std::string::npos)
+		    return arg.substr(arg.find('=')+1);
+	}
+	
+	return "1";
+}
+
+int main(int argc, char* argv[])
+{
+    int qtThreads = std::stoi(findArgument(argc, argv, "--qt-threads="));
+	bool shouldPrint = std::stoi(findArgument(argc, argv, "--output="));
+
+    const std::string fileName{"data.csv"};
+    std::vector<int> numbers = getFileContent(fileName);
+
+    // open threads and compute them
+    std::vector<std::future<int>> threads;
+
+    int parcelSize = numbers.size() / qtThreads;
+    int qtPrimos{0};
+
+    auto f = [&](int i, int j) {
+        return std::async(threadWrapper, &numbers, i, j);
+    };
+
+    // scope for timer, which uses destructor as end
     {
         Timer::Timer timeiro;
-        for (auto i : numbers) {
-            if (isPrime(i))
-                ++qtPrimos;
-        }
-    }
 
-    std::cout << qtPrimos << std::endl;
-    qtPrimos = 0;
-
-    int parcelSize = numbers.size() / c_qtThreads;
-
-	// asynchronous check
-    {
-        Timer::Timer timeiro;
-        for (int i{0}; i < c_qtThreads; ++i) {
-            if (i == c_qtThreads - 1)
-                threads.push_back(std::async(threadWrapper, &numbers,
-                                             i * parcelSize, numbers.size()));
+        for (int i{0}; i < qtThreads; ++i) {
+            if (i == qtThreads - 1)
+                threads.push_back(f(i * parcelSize, numbers.size()));
             else
-                threads.push_back(std::async(threadWrapper, &numbers,
-                                             i * parcelSize,
-                                             (i + 1) * parcelSize));
+                threads.push_back(f(i * parcelSize, (i + 1) * parcelSize));
         }
 
         for (auto& i : threads) {
@@ -100,7 +114,8 @@ int main()
         }
     }
 
-    std::cout << qtPrimos << std::endl;
+	if (shouldPrint)
+		std::cout << qtPrimos << std::endl;
 
     return 0;
 }
