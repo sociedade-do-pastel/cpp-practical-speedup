@@ -13,19 +13,30 @@ O /wrapper/ para contagem dos tempos é escrito em *Common Lisp*, executado a pa
 O programa deve ser executado sem argumentos para que este assuma um comportamento *serial* ou com um número inteiro *n* onde \( n > 1\) para que este seja executado com *n* /threads/.
 
 * O /wrapper/
+:PROPERTIES:
+:header-args: :tangle profilero.lisp
+:END:
 
-A parte mais fácil seria a execução do programa em si, uma vez que este só recebe um argumento.
+O procedimento mais simples é a execução do programa com nome e parâmetros definidos dinamicamente
+
+#+begin_src lisp
+(defvar *program-name* "Primos")
+(defvar *program-control-string* "./~a --qt-threads=~a --output=~a")
+#+end_src
+
+#+RESULTS:
+: *PROGRAM-CONTROL-STRING*
 
 #+begin_src lisp 
-(defun execute-program (program-name &optional n)
-  "Executes a program synchronously after receiving a single argument n.
-This function will return the string produced by the output of said
-program."
-  (let ((full-command (if (and n (> n 1))
-			  (list program-name n)
-			  program-name)))
-    (uiop:run-program full-command :output :string)))
-
+(defun execute-program (&optional n)
+  "Executes the program defined at top level, while checking if it exists.
+It will always execute it passing ``n'' as an argument and 0 in order to silence
+its output"
+  (if (uiop:file-exists-p *program-name*)
+      (read-from-string
+       (uiop:run-program (format nil *program-control-string* *program-name* n 0 )
+			 :output :string))
+      (error "You should compile Main.cpp")))
 #+end_src
 
 ** Cálculo da média 
@@ -36,17 +47,22 @@ O programa será executado cinquenta vezes para que seja definida uma média sim
 (defparameter *total-runs* 50)
 #+end_src
 
+#+RESULTS:
+: *TOTAL-RUNS*
+
 #+begin_src lisp 
-(defun get-average (runs filename &optional (n 1))
+(defun get-average (runs &optional (n 1))
   "Runs the program x times (runs) and returns the average runtime (sum/runs).
 ``n'' refers to the number of threads in which our program must execute on."
   (loop for i
 	from 0 below runs
-	sum (parse-integer (execute-program filename n)
-			   :junk-allowed t) into result
+	sum (execute-program n) into result
 	finally (return (/ result runs))))
 
 #+end_src
+
+#+RESULTS:
+: GET-AVERAGE
 
 ** Cálculo do /Speedup/
 
@@ -55,6 +71,7 @@ definir a seguinte função:
 
 #+begin_src lisp 
 (defun get-speedup (serial-time threaded-time)
+  "Returns the speedup (``serial-time''/``threaded-time'') of a process/job."
   (/ serial-time threaded-time))
 #+end_src
 
@@ -70,10 +87,12 @@ Por motivos de simplificação do experimento atual, algumas assunções devem s
 3. Assumindo que /n/ seja o número de /threads/, o cálculo de /Speedup/ se torna mais impreciso quando \(n > x\), uma vez que, num mundo ideal sem troca de contexto com todas as CPUs ocupadas com uma /thread/, \( n - x \) /threads/ ficarão *no estado ready*.
 
 
-
 #+begin_src lisp
-(defparameter *cpu-count* 4)
+(defparameter *cpu-count* 5)
 #+end_src
+
+#+RESULTS:
+: *CPU-COUNT*
 
 Após execução será produzida uma tabela cujas colunas representam:
 
@@ -84,17 +103,62 @@ Após execução será produzida uma tabela cujas colunas representam:
 
 
 #+begin_src lisp
-(defun get-row (filename n &key serial)
-  (let* ((time (get-average *total-runs* filename n))
+(defun get-row (n &key serial)
+  "Returns a single row of our table.
+Having the number of threads to execute the main program being ``n'',
+this procedure will return a list with the following structure:
+
+(number-of-threads (average-time . speedup))
+
+The optional keyword argument, ``serial'' tells us that the serial time was
+supplied, otherwise the average time will be divided by itself in order to
+obtain speedup info"
+  (let* ((time (get-average *total-runs* n))
 	 (speedup (get-speedup (or serial time) time)))
-    (list n (cons time speedup))))
+    (list n time speedup)))
 #+end_src
 
+#+RESULTS:
+: GET-ROW
+
+
+E por fim, a função "principal".
+
 #+begin_src lisp
-(defun produce-table (filename)
-  (let* ((serial-row (get-row filename 1))
-	 (serial-time (caadr serial-row))
+(defun produce-table ()
+  "Produces the main table to be read by org."
+  (let* ((serial-row (get-row 1))
+	 (serial-time (second serial-row))
 	 (parallel-table (loop for n from 2 to *cpu-count*
-			       collect (get-row filename n :serial serial-time ))))
+			       collect (get-row n :serial serial-time ))))
     (cons serial-row parallel-table)))
 #+end_src
+
+#+RESULTS:
+: PRODUCE-TABLE
+
+Após executá-la, temos os seguintes resultados:
+
+#+begin_src lisp :exports both
+(produce-table)
+#+end_src
+
+#+RESULTS:
+#+PLOT: set:"xlabel 'CPUs'" set:"ylabel 'Tempo médio (ms)'" set:"xtics 1"
+#+PLOT: title:"Speedup com paralelismo" ind:1 :deps(2 3) type:2d with:lines
+#+PLOT: labels:("New label" "Speedup" "")
+#+PLOT: set:"output './speedup-graph.png'" set:"terminal png size 600,300"
+|------+-------------+-----------|
+| CPUs | Tempo médio |   Speedup |
+|------+-------------+-----------|
+|    1 |   5849.1343 |       1.0 |
+|    2 |     3540.78 | 1.6519338 |
+|    3 |   3513.6194 | 1.6647035 |
+|    4 |   3037.8044 |  1.925448 |
+|    5 |   3196.9824 | 1.8295797 |
+
+** O gráfico
+
+[[file:speedup-graph.png]]
+
+
