@@ -1,23 +1,58 @@
+#+latex_class: fei
+#+options: author:nil
+#+title: /Threading/ e /Speedup/, um estudo simples
+#+latex_header: \author{{Leon Ferreira Bellini} \\ {\small 22.218.002-8} \and Guilherme Ormond Sampaio \\ {\small 22.218.007-7}}
+#+property: header-args :eval no-export
 * Motivação
 
-A criação deste pseudo /profiler/ se dá por conta da necessidade de *automatizar* o estudo do comportamento do problema apresentado anteriormente (ocorrências de números primos num arquivo com duzentos e cinquenta mil números). Basicamente, foi pedido que testes sobre uma quantidade de /threads/ seja feito *cinquenta vezes* de forma que seja possível retirar a média destes tempos obtidos para que, por fim, sejam utilizados nos cálculos/gráficos necessários.
+A criação deste pseudo /profiler/ dá-se por conta da necessidade de *automatizar* o estudo do comportamento do problema apresentado anteriormente (ocorrências de números primos num arquivo com duzentos e cinquenta mil números). Basicamente, foi pedido que testes sobre uma quantidade de /threads/ seja feito *cinquenta vezes* de forma que seja possível retirar a média destes tempos obtidos para que, por fim, sejam utilizados nos cálculos ou gráficos necessários.
 
 ** Como este relatório é estruturado
 
-O /core/ do programa foi escrito em C++, compilado com o /GNU C compiler/ com as devidas bibliotecas importadas, no caso, apenas ~pthread~. O comando de compilação pode ser encontrado no [[file:Makefile][Makefile]] encontrado na raiz do projeto.
+O /core/ do programa foi escrito em C++, compilado com o /GNU C compiler/ com as devidas bibliotecas importadas, no caso, apenas ~pthread~. O comando de compilação pode ser encontrado no [[file:Makefile][Makefile]], este podendo ser encontrado na raiz do projeto.
 
-O /wrapper/ para contagem dos tempos é escrito em *Common Lisp*, executado a partir da implementação *SBCL*.
+O /wrapper/ para contagem dos tempos é escrito em *Common Lisp*, compilado e executado a partir da implementação *SBCL*.
 
 * O programa principal
 
-O programa deve ser executado sem argumentos para que este assuma um comportamento *serial* ou com um número inteiro *n* onde \( n > 1\) para que este seja executado com *n* /threads/.
+O predicado para a definição de um número como primo ou não foi retirado de [[https://learnprogramo.com/prime-number-program-in-c-plus-plus/][learnprogramo]], tal função tendo a seguinte estrutura:
+
+#+include: "Main.cpp" src C++ :lines "9-28"
+
+Apesar de não ser tão complexa quanto os outros diversos crivos para "detecção" de números primos, o fato desta utilizar *o quadrado* de /i/ até /n/ agiliza o processo quando comparado com os algoritmos onde o passo é incrementado de maneira unitária.
+
+#+latex: \clearpage
+
+** Entrada
+
+O executável tratará de certas /flags/ as quais o auxiliam distinguir entre a execução por meio do /wrapper/ ou por um usuário comum. Tal entrada tem o seguinte formato:
+
+
+~./Primos --output=<0 (apenas tempo) ou 1(tempo + resultado)> \ --qt-threads=<0 ate n>~
+
+
+Logo, se o usuário deseja um comportamento /single-threaded/, basta invocar o executável com os seguintes parâmetros:
+
+#+begin_src sh :exports both
+./Primos --output=1 --qt-threads=1
+#+end_src
+
+#+RESULTS:
+| 6604.2 |
+| 121300 |
+
+Onde a primeira linha trata-se do tempo em *milissegundos* e a segunda a quantidade de números primos encontrados dentre a base carregada. 
 
 * O /wrapper/
 :PROPERTIES:
 :header-args: :tangle profilero.lisp
 :END:
 
-O procedimento mais simples é a execução do programa com nome e parâmetros definidos dinamicamente
+Como forma de diminuir o ruído na coleta de dados, a equipe decidiu que a contagem do tempo deve ocorrem em relação ao procedimento de soma de números primos, ao invés de *considerar o programa inteiro para tal cálculo*. 
+
+A seguir será detalhado o processo adotado para obtenção dos dados relacionados a *Speedup* e tempos médios das execuções. O leitor pode pular para [[* Coletando os dados das execuções]] se estiver apenas interessado nos resultados finais. 
+
+Primeiramente é definido nome do programa e /string/ de controle dinamicamente com o intuito de facilitar a modificação destas com a evolução do projeto:
 
 #+begin_src lisp
 (defvar *program-name* "Primos")
@@ -27,21 +62,27 @@ O procedimento mais simples é a execução do programa com nome e parâmetros d
 #+RESULTS:
 : *PROGRAM-CONTROL-STRING*
 
+O procedimento para a execução em si do programa é simples e sinaliza um erro caso este não exista no diretório atual. 
+
 #+begin_src lisp 
 (defun execute-program (&optional n)
   "Executes the program defined at top level, while checking if it exists.
-It will always execute it passing ``n'' as an argument and 0 in order to silence
-its output"
+It will always execute said program while passing ``n'' as an argument and 0 in
+order to silence its output"
   (if (uiop:file-exists-p *program-name*)
       (read-from-string
-       (uiop:run-program (format nil *program-control-string* *program-name* n 0 )
+       (uiop:run-program (format nil *program-control-string* *program-name* n 0)
 			 :output :string))
-      (error "You should compile Main.cpp")))
+    (error "You should compile Main.cpp")))
 #+end_src
+
+#+latex: \clearpage
 
 ** Cálculo da média 
 
-O programa será executado cinquenta vezes para que seja definida uma média simples em relação a todas as execuções. Para que seja possível um controle maior, o número de execuções será customizável.
+Como sugerido nas instruções do projeto, o programa será executado cinquenta
+vezes a fim de obter uma média simples em relação a todas as execuções. Para que
+seja possível um controle maior, o número de execuções será customizável.
 
 #+begin_src lisp
 (defparameter *total-runs* 50)
@@ -50,10 +91,13 @@ O programa será executado cinquenta vezes para que seja definida uma média sim
 #+RESULTS:
 : *TOTAL-RUNS*
 
+O cálculo da média ocorre em ~get-average~. 
+
 #+begin_src lisp 
 (defun get-average (runs &optional (n 1))
   "Runs the program x times (runs) and returns the average runtime (sum/runs).
-``n'' refers to the number of threads in which our program must execute on."
+``n'' refers to the number of threads in which our program must execute on,
+defaults to 1."
   (loop for i
 	from 0 below runs
 	sum (execute-program n) into result
@@ -67,7 +111,7 @@ O programa será executado cinquenta vezes para que seja definida uma média sim
 ** Cálculo do /Speedup/
 
 Partindo do cálculo simples do /Speedup/ onde \(Speedup = \frac{T_1}{T_n}\), podemos
-definir a seguinte função:
+escrever a seguinte função:
 
 #+begin_src lisp 
 (defun get-speedup (serial-time threaded-time)
@@ -78,29 +122,33 @@ definir a seguinte função:
 #+RESULTS:
 : GET-SPEEDUP
 
+#+latex: \clearpage
+
 ** Coletando os dados das execuções
 
-Por motivos de simplificação do experimento atual, algumas assunções devem ser realizadas quanto ao ambiente em que tais experiências serão realizadas
+Alguns fatores devem ser, primeiramente, expostos a fim de tornar este experimento o mais transparente possível. 
 
-1. \(x = [1, \infty[ \), como a equipe não possui infinitas quantidades de CPUs, o limite superior será o número de CPUs dos membros da equipe;
-2. Quando \(x = 1\), o comportamento do programa será completamente *serial*;
-3. Assumindo que /n/ seja o número de /threads/, o cálculo de /Speedup/ se torna mais impreciso quando \(n > x\), uma vez que, num mundo ideal sem troca de contexto com todas as CPUs ocupadas com uma /thread/, \( n - x \) /threads/ ficarão *no estado ready*.
+1. O experimento será executado numa CPU *quad-core*, ou seja, num melhor caso quatro /threads/ do programa ocuparão as CPUs antes de uma troca de contexto. Não há garantia que o aumento de /threads/ com \(n > 4\) aumente as chances do programa estar em uma das CPUs.
+2. Como maneira de se autopreservar, sistemas diminuem as frequências de suas CPUs como forma de diminuir a temperatura para um valor que não seja danoso. Logo, alguns valores podem se apresentar como maiores do que deveriam nas iterações mais avançadas. 
 
+
+O grupo definiu *dez threads* como limite, gerando  \(50 \times 10\) execuções.
 
 #+begin_src lisp
-(defparameter *cpu-count* 5)
+(defparameter *thread-count* 10)
 #+end_src
 
 #+RESULTS:
-: *CPU-COUNT*
+: *THREAD-COUNT*
 
-Após execução será produzida uma tabela cujas colunas representam:
+Após terminação, será produzida uma tabela cujas colunas representam:
 
 1. Número de /threads n/
 2. Tempo em milissegundos da execução
 3. /Speedup/
 
 
+As linhas sendo produzidas pela seguinte função:
 
 #+begin_src lisp
 (defun get-row (n &key serial)
@@ -121,6 +169,7 @@ obtain speedup info"
 #+RESULTS:
 : GET-ROW
 
+#+latex: \clearpage
 
 E por fim, a função "principal".
 
@@ -129,7 +178,7 @@ E por fim, a função "principal".
   "Produces the main table to be read by org."
   (let* ((serial-row (get-row 1))
 	 (serial-time (second serial-row))
-	 (parallel-table (loop for n from 2 to *cpu-count*
+	 (parallel-table (loop for n from 2 to *thread-count*
 			       collect (get-row n :serial serial-time ))))
     (cons serial-row parallel-table)))
 #+end_src
@@ -137,28 +186,57 @@ E por fim, a função "principal".
 #+RESULTS:
 : PRODUCE-TABLE
 
-Após executá-la, temos os seguintes resultados:
+Após duas horas de execução, foram obtidos os seguintes resultados:
 
 #+begin_src lisp :exports both
 (produce-table)
 #+end_src
 
 #+RESULTS:
-#+PLOT: set:"xlabel 'CPUs'" set:"ylabel 'Tempo médio (ms)'" set:"xtics 1"
+#+PLOT: set:"xlabel 'Threads'" set:"ylabel 'Tempo médio (ms)'" set:"xtics 1"
 #+PLOT: title:"Speedup com paralelismo" ind:1 :deps(2 3) type:2d with:lines
 #+PLOT: labels:("New label" "Speedup" "")
 #+PLOT: set:"output './speedup-graph.png'" set:"terminal png size 600,300"
-|------+-------------+-----------|
-| CPUs | Tempo médio |   Speedup |
-|------+-------------+-----------|
-|    1 |   5849.1343 |       1.0 |
-|    2 |     3540.78 | 1.6519338 |
-|    3 |   3513.6194 | 1.6647035 |
-|    4 |   3037.8044 |  1.925448 |
-|    5 |   3196.9824 | 1.8295797 |
+| / |       < |                < |        <> |
+|---+---------+------------------+-----------|
+|   | Threads | Tempo médio (ms) |   Speedup |
+|---+---------+------------------+-----------|
+|   |       1 |          5831.78 |       1.0 |
+|   |       2 |        3496.3193 | 1.6679769 |
+|   |       3 |        3483.8306 | 1.6739562 |
+|   |       4 |        3004.3293 | 1.9411253 |
+|   |       5 |        2950.7893 | 1.9763457 |
+|   |       6 |        2926.4277 | 1.9927982 |
+|   |       7 |        2885.4094 | 2.0211272 |
+|   |       8 |        2855.3257 | 2.0424218 |
+|   |       9 |        2849.0715 | 2.0469053 |
+|   |      10 |        2839.9644 | 2.0534694 |
+|---+---------+------------------+-----------|
 
-** O gráfico
+
+** O gráfico gerado
 
 [[file:speedup-graph.png]]
 
+* Discussões e conclusão 
+
+Como detalhado pela lei de *Amdahl*, a estabilização do fator de /Speedup/ é esperada, como pode se notar ao se observar o [[* O gráfico gerado][gráfico]], ocorrendo em torno do valor de =2.04=, o que é animador, uma vez que tal valor nos indica uma diminuição para a metade do tempo de processamento do problema. Entretanto, devido a esta estabilização,  o recomendado seria, então, manter o programa em sete ou oito /threads/, mesmo que ainda ocorra uma melhora diminuta com nove e dez /threads/. Pode-se imaginar que a tendência do problema é manter-se no intervalo\(]1.9, 2.1[\) com mais /threads/ com a possibilidade de piora, uma vez que a divisão do problema para dezenas ou centenas de /threads/ pode incitar uma "concorrência" desnecessária entre os processos durante escalonamento. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Local Variables:
+# org-latex-classes: '("fei" "\\documentclass{fei}" ("\\chapter{%s}" . "\\chapter*{%s}") ("\\section{%s}" . "\\section*{%s}") ("\\subsection{%s}" . "\\subsection*{%s}") ("\\subsubsection{%s}" . "\\subsubsection*{%s}") ("\\paragraph{%s}" . "\\paragraph*{%s}") ("\\subparagraph{%s}" . "\\subparagraph*{%s}"))
+# End:
 
