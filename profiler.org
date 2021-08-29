@@ -1,8 +1,12 @@
 #+latex_class: fei
-#+options: author:nil
+#+options: author:nil date:nil
 #+title: /Threading/ e /Speedup/, um estudo simples
 #+latex_header: \author{{Leon Ferreira Bellini} \\ {\small 22.218.002-8} \and Guilherme Ormond Sampaio \\ {\small 22.218.007-7}}
 #+property: header-args :eval no-export
+* O repositório do projeto
+
+Este relatório pode ser encontrado na plataforma para hospedagem  [[https://github.com/sociedade-do-pastel/cpp-practical-speedup][*github*]] no formato *org* e acompanhado do código principal para realização do experimento escrito em C++. 
+
 * Motivação
 
 A criação deste pseudo /profiler/ dá-se por conta da necessidade de *automatizar* o estudo do comportamento do problema apresentado anteriormente (ocorrências de números primos num arquivo com duzentos e cinquenta mil números). Basicamente, foi pedido que testes sobre uma quantidade de /threads/ seja feito *cinquenta vezes* de forma que seja possível retirar a média destes tempos obtidos para que, por fim, sejam utilizados nos cálculos ou gráficos necessários.
@@ -192,12 +196,8 @@ Após duas horas de execução, foram obtidos os seguintes resultados:
 (produce-table)
 #+end_src
 
-#+RESULTS:
-#+PLOT: set:"xlabel 'Threads'" set:"ylabel 'Tempo médio (ms)'" set:"xtics 1"
-#+PLOT: title:"Speedup com paralelismo" ind:1 :deps(2 3) type:2d with:lines
-#+PLOT: labels:("New label" "Speedup" "")
-#+PLOT: set:"output './speedup-graph.png'" set:"terminal png size 600,300"
-| / |       < |                < |        <> |
+#+PLOT: title:"Threads x Tempo médio de execução" type:2d ind:1 deps:(2) set:"output 'runtime-graph.png'" set:"terminal png size 600,300" set:"ylabel 'Tempo médio'"
+| / |       < |               <> |         > |
 |---+---------+------------------+-----------|
 |   | Threads | Tempo médio (ms) |   Speedup |
 |---+---------+------------------+-----------|
@@ -214,13 +214,15 @@ Após duas horas de execução, foram obtidos os seguintes resultados:
 |---+---------+------------------+-----------|
 
 
-** O gráfico gerado
+** Os gráficos gerados
 
 [[file:speedup-graph.png]]
 
+[[file:runtime-graph.png]]
+
 * Discussões e conclusão 
 
-Como detalhado pela lei de *Amdahl*, a estabilização do fator de /Speedup/ é esperada, como pode se notar ao se observar o [[* O gráfico gerado][gráfico]], ocorrendo em torno do valor de =2.04=, o que é animador, uma vez que tal valor nos indica uma diminuição para a metade do tempo de processamento do problema. Entretanto, devido a esta estabilização,  o recomendado seria, então, manter o programa em sete ou oito /threads/, mesmo que ainda ocorra uma melhora diminuta com nove e dez /threads/. Pode-se imaginar que a tendência do problema é manter-se no intervalo\(]1.9, 2.1[\) com mais /threads/ com a possibilidade de piora, uma vez que a divisão do problema para dezenas ou centenas de /threads/ pode incitar uma "concorrência" desnecessária entre os processos durante escalonamento. 
+Como detalhado pela lei de *Amdahl*, a estabilização do fator de /Speedup/ é esperada, como pode se notar ao se observar ambos os [[* Os gráficos gerados][gráficos]], ocorrendo em torno do valor de =2.04=, o que é animador, uma vez que tal valor nos indica uma diminuição para a metade do tempo de processamento do problema. Entretanto, devido a esta estabilização,  o recomendado seria, então, manter o programa em sete ou oito /threads/, mesmo que ainda ocorra uma melhora diminuta com nove e dez /threads/. Pode-se imaginar que a tendência do problema é manter-se no intervalo\(]1.9, 2.1[\) com mais /threads/, *com a possibilidade de piora*, uma vez que a divisão do problema para dezenas ou centenas de /threads/ pode incitar uma "concorrência" desnecessária entre os processos durante escalonamento. 
 
 
 
